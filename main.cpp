@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <ctime>
 
-#include <string> //delete this include while rebuild programm and // imeToStr line
+#include <string> //delete this include while rebuild programm and // timeToStr line
 
 // SETTINGS
 
@@ -98,11 +98,17 @@ struct Tasks
 {
 	Task ** tasks;
 	unsigned int length = 0;
+	unsigned int size = 0;
 };
 
 Task * getTask ( char * title, char * body )
-{
-	return new Task { title, body, std::time (0) };
+{	 
+	char * pt = new char [std::strlen (title)];
+	char * pb = new char [std::strlen (body)];
+	std::strcpy ( pt, title );
+	std::strcpy ( pb, body );
+
+	return new Task { pt, pb, std::time (0) };
 }
 
 Task * getTask (void)
@@ -155,12 +161,15 @@ Task * getTask (void)
 	std::strcpy ( pointerTitle, title );
 
 	//std::cin.getline (  );
-	return getTask ( pointerTitle, pointerBody );
+	Task * task = getTask ( pointerTitle, pointerBody ); 
+
+	delete [] pointerTitle;	
+	delete [] pointerBody;
+	return task;
 }
 
 int encryptFile ( char * filename, char * mask )
 {
-	//std::strcpy ( filename, "text.txt");
 	std::ifstream fileIn;
 	fileIn.open ( filename );
 
@@ -175,11 +184,7 @@ int encryptFile ( char * filename, char * mask )
 	while ( fileIn.good ())
 	{
 		fileIn.getline ( line, 999 );
-		//std::cout << line;
-		//std::cout << "\n";
 		std::cout << fastEncrypt ( line, mask );
-		//std::cout << "\n";
-		//std::cout << fastDecode ( fastEncrypt (line, mask), mask );
 	}
 	
 	return 0;
@@ -198,17 +203,13 @@ int dump ( Tasks * tasks, char * mask )
 		std::strcpy ( taskText, tasks->tasks[i]->title );
 		taskText [std::strlen(  tasks->tasks[i]->title )] = '\\';
 		std::strcpy ( taskText, std::strcat ( taskText, tasks->tasks[i]->body  ) );
-		//std::cout << "Mask : \"" <<  mask << "\"\n";
-		//std::cout << fastEncrypt ( taskText, mask ) << "\n" << taskText;
+
 		outFile << fastEncrypt ( taskText, mask ); 
-		//outFile << "|";
-		//outFile << fastEncrypt ( tasks->tasks[i]->body, mask );
 		outFile << "\n<--new-->\n";
+
 		delete [] taskText;
 	}
-	
-	//std::cout << tasks << "\n";
-	//std::cout << tasks->tasks[0]->title;
+
 	outFile.close();
 	return 0;	
 }
@@ -218,23 +219,73 @@ Tasks * load ( char * filename, char * mask )
 	std::ifstream inputFile;
 	inputFile.open ( filename );
 
-	if ( !fileIn.is_open ())
+	if ( !inputFile.is_open ())
 	{
 		std::cout << "Error while opening file =(\n";
 		std::exit(EXIT_FAILURE);
 	}
 
 	char line [ MAXBODYLENGTH + MAXTITLELENGTH ];
-	
-	while ( fileIn.good ())
-	{
-		fileIn.getline ( line, ( MAXBODYLENGTH + MAXTITLELENGTH ) );	
-		line = fastDecode ( line, mask );
-		
-		for ( int i = 0; i < std::strlen ( line ) );
+	char * title = new char [MAXTITLELENGTH];
+	char * body = new char [MAXBODYLENGTH];
+	char ** taskElements = new char * [2];
+	taskElements [0] = title;
+	taskElements [1] = body;
 
-		std::cout << fastEncrypt ( line, mask );
+	//int lastTaskIndex = 0;
+	int lastTaskStrIndex = 0;
+	int currentElement = 0;
+	Tasks * tasks = new Tasks { new Task * [100], 0, 100 };
+		
+	while ( inputFile.good ())
+	{
+		if ( tasks->size == tasks->length )
+		{
+			std::cout << "Too match tasks\n";
+			std::exit (EXIT_FAILURE);
+		}
+
+		inputFile.getline ( line, ( MAXBODYLENGTH + MAXTITLELENGTH ) );	
+
+		if ( !std::strcmp ( line, "<--new-->" ))
+		{	
+			taskElements[currentElement][lastTaskStrIndex] = '\0';
+
+			tasks->tasks[tasks->length] = getTask ( title, body );
+			tasks->length ++;
+
+			std::strcpy ( title, "" );
+			std::strcpy ( body, "" );
+			lastTaskStrIndex = 0;
+			currentElement = 0;
+
+			continue;	
+		}
+		std::strcpy ( line, fastDecode ( line, mask ));
+		
+		for ( int i = 0; i < std::strlen ( line ); i++ )
+		{
+			if ( line[i] == '\\' )
+			{
+				taskElements[currentElement][lastTaskStrIndex] = '\0';
+				lastTaskStrIndex = 0;
+				currentElement ++;
+				continue;
+			}
+			
+			taskElements[currentElement][lastTaskStrIndex] = line[i];
+			lastTaskStrIndex++;
+		}
 	}	
+	std::cout << tasks->length << ". tasks succesfully loaded.\n";
+	delete [] title;
+	delete [] body;
+	return tasks;
+}
+Tasks * load ( char * mask )
+{
+	char filename [] = ".tasks";
+	return load ( filename, mask );
 }
 
 void printTasksArr ( Task ** tasks, unsigned int length )
@@ -255,13 +306,14 @@ void printTasksArr ( Tasks * tasks )
 int main ()
 {
 	char * password = getPassword ();
-	Tasks * tasks = new Tasks { new Task * [2], 2}; 
+	Tasks * tasks;// new Tasks { new Task * [2], 2}; 
 	//Task **  = new Task * [2];
-	tasks->tasks[0] = getTask ();
-	tasks->tasks[1] = getTask ();
+	//tasks->tasks[0] = getTask ();
+	//tasks->tasks[1] = getTask ();
 		
-	std::cout << "Mask: " << password;
-	dump ( tasks, password );
+	tasks = load ( password );
+	printTasksArr (tasks);
+	//dump ( tasks, password );
 	//printTasksArr ( tasks->tasks, tasks->length );
 	//Task * task = getTask ();
 	//std::cout << task->title << "\n" << task->body << "\n";
